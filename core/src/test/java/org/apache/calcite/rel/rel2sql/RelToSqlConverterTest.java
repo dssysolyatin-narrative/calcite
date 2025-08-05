@@ -2210,7 +2210,7 @@ class RelToSqlConverterTest {
         + "INNER JOIN \"foodmart\".\"sales_fact_1997\" ON \"product\".\"product_id\" = \"sales_fact_1997\".\"product_id\"\n"
         + "GROUP BY \"product\".\"product_id\"\n"
         + "HAVING COUNT(*) > 1) AS \"t2\"\n"
-        + "WHERE \"t2\".\"product_id\" > 100";
+        + "WHERE \"product_id\" > 100";
     sql(query).ok(expected);
   }
 
@@ -7602,8 +7602,8 @@ class RelToSqlConverterTest {
         + "  group by c.\"city\", s.\"store_sales\") AS mytable\n"
         + "group by mytable.\"city\"";
 
-    final String expected = "SELECT \"t0\".\"city\","
-        + " SUM(\"t0\".\"store_sales\") AS \"my-alias\"\n"
+    final String expected = "SELECT \"city\","
+        + " SUM(\"store_sales\") AS \"my-alias\"\n"
         + "FROM (SELECT \"customer\".\"city\","
         + " \"sales_fact_1997\".\"store_sales\"\n"
         + "FROM \"foodmart\".\"sales_fact_1997\"\n"
@@ -7612,7 +7612,7 @@ class RelToSqlConverterTest {
         + " = \"customer\".\"customer_id\"\n"
         + "GROUP BY \"customer\".\"city\","
         + " \"sales_fact_1997\".\"store_sales\") AS \"t0\"\n"
-        + "GROUP BY \"t0\".\"city\"";
+        + "GROUP BY \"city\"";
     sql(query).ok(expected);
   }
 
@@ -10371,6 +10371,30 @@ class RelToSqlConverterTest {
             + "SELECT *\nFROM \"foodmart\".\"product\"\n"
             + "WHERE \"product_id\" = \"t\".\"product_id\" AND \"product_id\" > 10"
             + ")";
+    sql(sql).ok(expected);
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-7127">[CALCITE-7127]
+   * Anti-join with WHERE NOT EXISTS syntax has corrupted condition.</a>. */
+  @Test void testAntiJoinWithComplexInput3() {
+    final String sql = "select e3.\"product_id\", e3.\"product_name\" "
+        + "from ("
+        + "select 1 AS \"additional_column\", e1.\"product_id\", e1.\"product_name\" from \"foodmart\".\"product\" e1 "
+        + "left join \"foodmart\".\"product\" e2 on e1.\"product_id\" = e2.\"product_id\""
+        + ") as e3 "
+        + "where e3.\"product_name\" IS NOT NULL AND NOT EXISTS("
+        + "select 1 from \"foodmart\".\"employee\" e4 "
+        + "where e4.\"employee_id\" = e3.\"additional_column\""
+        + ")";
+    final String expected =
+        "SELECT \"product_id\", \"product_name\"\n"
+            + "FROM (SELECT 1 AS \"additional_column\", \"product\".\"product_id\", \"product\".\"product_name\"\n"
+            + "FROM \"foodmart\".\"product\"\n"
+            + "LEFT JOIN \"foodmart\".\"product\" AS \"product0\" ON \"product\".\"product_id\" = \"product0\".\"product_id\") AS \"t\"\n"
+            + "WHERE \"product_name\" IS NOT NULL AND NOT EXISTS (SELECT *\n"
+            + "FROM \"foodmart\".\"employee\"\n"
+            + "WHERE \"employee_id\" = \"t\".\"additional_column\")";
     sql(sql).ok(expected);
   }
 
