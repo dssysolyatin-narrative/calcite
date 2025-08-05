@@ -1,3 +1,7 @@
+Similar to [CALCITE-6804], but [CALCITE-6804] only partly resolved the problem.
+
+Query like this:
+```sql
 SELECT e3."product_id", e3."product_name"
 FROM (
     SELECT 1 AS "additional_column",
@@ -12,8 +16,10 @@ WHERE e3."product_name" IS NOT NULL AND NOT EXISTS (
     FROM "foodmart"."employee" e4
     WHERE e4."employee_id" = e3."additional_column"
 )
+```
 
--- Generated query --
+are being converted into
+```sql
 SELECT product_id, product_name
 FROM (
   SELECT
@@ -29,3 +35,35 @@ WHERE t.product_name IS NOT NULL AND NOT EXISTS (
     FROM foodmart.employee
     WHERE employee_id = product.product_class_id
 );
+```
+
+So, the problem is that in original query:
+```
+WHERE e4."employee_id" = e3."additional_column"
+```
+
+In generated query:
+```
+WHERE employee_id = product.product_class_id
+```
+Calcite generates  `product.product_class_id` instead of `t.additional_column`.
+
+Generated plan (it is correct plan):
+```
+LogicalProject(product_id=[$1], product_name=[$2])
+  LogicalFilter(condition=[AND(IS NOT NULL($2), NOT(EXISTS({
+LogicalFilter(condition=[=($0, $cor0.additional_column)])
+  JdbcTableScan(table=[[foodmart, employee]])
+})))], variablesSet=[[$cor0]])
+    LogicalProject(additional_column=[1], product_id=[$1], product_name=[$3])
+      LogicalJoin(condition=[=($1, $16)], joinType=[left])
+        JdbcTableScan(table=[[foodmart, product]])
+        JdbcTableScan(table=[[foodmart, product]])
+```
+
+Basically, the problem is that `SqlImplementor.Result` for a `Project` includes aliases for relations used inside the `Project`.
+But as far as I know, there’s no syntax that allows referring to those internal relations from outside the Project.
+The Project should hide (or encapsulate) the relations it uses.
+
+Roughly speaking, LogicalFilter should not have access to the relations used inside the LogicalProject. But RelToSqlConverter allow it.
+It seems like this is where all the problems start.
