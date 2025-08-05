@@ -1,0 +1,31 @@
+SELECT e3."product_id", e3."product_name"
+FROM (
+    SELECT 1 AS "additional_column",
+           e1."product_id",
+           e1."product_name"
+    FROM   "foodmart"."product" e1
+    LEFT JOIN "foodmart"."product" e2
+    ON e1."product_id" = e2."product_id"
+) AS e3
+WHERE e3."product_name" IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM "foodmart"."employee" e4
+    WHERE e4."employee_id" = e3."additional_column"
+)
+
+-- Generated query --
+SELECT product_id, product_name
+FROM (
+  SELECT
+    1 AS additional_column,
+    product.product_id,
+    product.product_name
+  FROM foodmart.product
+  LEFT JOIN foodmart.product AS product0
+  ON product.product_id = product0.product_id
+) AS t
+WHERE t.product_name IS NOT NULL AND NOT EXISTS (
+    SELECT *
+    FROM foodmart.employee
+    WHERE employee_id = product.product_class_id
+);
