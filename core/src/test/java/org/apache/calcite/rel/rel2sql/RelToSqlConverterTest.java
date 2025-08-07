@@ -2214,6 +2214,29 @@ class RelToSqlConverterTest {
     sql(query).ok(expected);
   }
 
+  @Test void testSubQueryFlattening() {
+    final String query = "select \"t3\".\"product_id\" "
+        + "from ("
+        + "  select \"t2\".\"product_id\", \"t2\".\"product_name\" "
+        + "  from ("
+        + "    select * "
+        + "    from ("
+        + "      select \"product_id\", \"product_class_id\", \"product_name\" "
+        + "      from \"foodmart\".\"product\""
+        + "    ) as \"t\" "
+        + "    left join ("
+        + "      select \"product_id\" "
+        + "      from \"foodmart\".\"sales_fact_1997\""
+        + "    ) as \"t0\" "
+        + "    on \"t\".\"product_id\" = \"t0\".\"product_id\""
+        + "  ) as \"t2\""
+        + ") as \"t3\"";
+    sql(query).withDb2().withConfig(config ->
+        // disable merge project optimization by relbuilder
+        config.withRelBuilderConfigTransform(relBuilderConfig -> relBuilderConfig.withBloat(-1))
+    ).ok("");
+  }
+
   /** Test case for
    * <a href="https://issues.apache.org/jira/browse/CALCITE-3811">[CALCITE-3811]
    * JDBC adapter generates SQL with invalid field names if Filter's row type
